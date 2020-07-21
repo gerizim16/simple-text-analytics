@@ -1,84 +1,72 @@
 import sys
-import collections
+import os
+from pathlib import Path
 import nltk
+from nltk.text import Text
 import string
 
 
-class TextFile(object):
-    def __init__(self, filename):
-        with open(filename, 'r', encoding='utf-8') as text_file:
-            self._text = text_file.read().replace('\n', ' ')
-        self._word_counter = None
-        self._sentences = None
+def main():
+    # Check arguments
+    if not (2 <= len(sys.argv) <= 3):
+        sys.exit('Usage: python main.py <text_filename> [file_encoding]')
+    filename = sys.argv[1].strip()
+    encoding = None
+    if len(sys.argv) == 3:
+        encoding = sys.argv[2]
 
-    def wordTokenize(self, text):
-        words = nltk.word_tokenize(
-            text.translate(''.maketrans('', '', string.punctuation)))
-        stop_words = set(nltk.corpus.stopwords.words('english'))
+    # Create output folder and define paths
+    OUTPUT_FOLDER = 'results_' + filename
+    Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
+    FREQ_DIST_PATH = os.path.join(
+        OUTPUT_FOLDER, 'frequency_distribution_' + filename + '.csv')
+    CONCORDANCE_TSV_PATH = os.path.join(OUTPUT_FOLDER,
+                                        'concordance_' + filename + '.tsv')
+    CONCORDANCE_TXT_PATH = os.path.join(OUTPUT_FOLDER,
+                                        'concordance' + filename + '.txt')
 
-        words = map(str.lower, words)
-        return list(word for word in words if word not in stop_words)
+    # Open file
+    with open(filename, 'r', encoding=encoding) as text_file:
+        text = Text(nltk.word_tokenize(text_file.read()))
 
-    def sentTokenize(self, text):
-        return nltk.sent_tokenize(text)
+    # Create frequency distribution of words
+    stopwords = set(nltk.corpus.stopwords.words('english'))
+    punctuations = set(string.punctuation)
 
-    def getWordFreq(self, n=None):
-        if self._word_counter is None:
-            words = self.wordTokenize(self._text)
-            self._word_counter = collections.Counter(words)
-        return self._word_counter.most_common(n)
+    freq_dist = nltk.FreqDist(word.lower() for word in text
+                              if word not in stopwords | punctuations)
+    # Save to csv
+    with open(FREQ_DIST_PATH, 'w', encoding=encoding) as freq_dist_file:
+        freq_dist_file.write('word,frequency\n')
+        for data in freq_dist.most_common():
+            freq_dist_file.write('{},{}\n'.format(*data))
+            print('{}\t{}'.format(*data))
 
-    def wordNeighbors(self, word):
-        if self._sentences is None:
-            self._sentences = [
-                self.wordTokenize(sentence)
-                for sentence in self.sentTokenize(self._text)
-            ]
+    # Create concordance
+    concordance_keys = list()
+    print(
+        'Enter the words you want to search for concordance: (enter "!" to end)'
+    )
+    while (True):
+        key = input().strip()
+        if key == '!':
+            break
+        concordance_keys.append(key)
 
-        counter = collections.Counter()
-        for sentence in self._sentences:
-            if word in sentence:
-                counter.update(sentence)
-
-        return counter.most_common()
-
-
-def printMenu():
-    print('==========================')
-    print('0, Exit')
-    print('1. Get word frequency')
-    print('2. Get most common N words')
-    print('3. Get frequency of words neighboring X')
-    print('==========================')
-    print()
+    # Save to csv and txt
+    with open(CONCORDANCE_TSV_PATH, 'w', encoding=encoding) as conc_tsv, open(
+            CONCORDANCE_TXT_PATH, 'w', encoding=encoding) as conc_txt:
+        conc_tsv.write('left Context\tword\tright context\n')
+        
+        for key in concordance_keys:
+            concordance = text.concordance_list(key, width=150, lines=None)
+            for concordance_line in concordance:
+                print(concordance_line.line)
+                conc_tsv.write('{}\t{}\t{}\n'.format(
+                    concordance_line.left_print, concordance_line.query,
+                    concordance_line.right_print))
+                conc_txt.write(concordance_line.line + '\n')
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        sys.exit('Usage: python main.py <text_filename>')
-
-    filename = sys.argv[1].strip()
-    text_file = TextFile(filename)
-
-    while True:
-        printMenu()
-        usr_input = input()
-
-        if usr_input == '0':
-            break
-
-        elif usr_input == '1':
-            with open('word_frequency.csv', 'w',
-                      encoding='utf-8') as word_frequency_file:
-                for data in text_file.getWordFreq():
-                    word_frequency_file.write('{},{}\n'.format(*data))
-
-        elif usr_input == '2':
-            n = int(input('Enter number of words: '))
-            for data in text_file.getWordFreq(n):
-                print('{}\t{}'.format(*data))
-
-        elif usr_input == '3':
-            word = input('Enter word: ')
-            for data in text_file.wordNeighbors(word):
-                print('{}\t{}'.format(*data))
+    main()
