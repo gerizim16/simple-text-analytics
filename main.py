@@ -51,7 +51,7 @@ def main():
     # Create concordance
     keys = list()
     print(
-        'Enter the words you want to search for concordance: (enter nothing to end)'
+        'Enter the words you want to search for concordance and text clustering: (enter nothing to end)'
     )
     while (True):
         key = input().strip().lower()
@@ -105,7 +105,6 @@ def main():
         row = 1
         for sentence in sentences:
             if key in tuple(map(str.lower, sentence)):
-                print(sentence)
                 worksheet_summary.write(row, i, ' '.join(sentence))
                 row += 1
     
